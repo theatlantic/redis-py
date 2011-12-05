@@ -281,7 +281,7 @@ class Connection(object):
             try:
                 response = self._parser.read_response()
             except ConnectionError:
-                if not self.catch_errors:
+                if not catch_errors:
                     raise
                 self.connect()
                 self._parser.on_connect(self)
