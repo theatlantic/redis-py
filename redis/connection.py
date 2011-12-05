@@ -73,17 +73,16 @@ class PythonParser(object):
         except (socket.error, socket.timeout), e:
             raise ConnectionError("Error while reading from socket: %s" % \
                 (e.args,))
+        except AttributeError, e:
+            if not self._fp or not self._fp._sock:
+                raise ConnectionError("Error while reading from socket")
+            else:
+                raise
 
     def read_response(self):
         if not self._fp or not self._sock:
             raise ConnectionError("Socket closed on remote end")
-        try:
-            response = self.read()
-        except AttributeError:
-            if not self._fp._sock:
-                raise ConnectionError("Socket closed on remote end")
-            else:
-                raise
+        response = self.read()
         if not response:
             raise ConnectionError("Socket closed on remote end")
 
