@@ -253,6 +253,7 @@ class Connection(object):
         "Send an already packed command to the Redis server"
         if not self._sock:
             self.connect()
+            self._parser.on_connect(self)
         try:
             self._sock.sendall(command)
         except socket.error, e:
@@ -263,6 +264,19 @@ class Connection(object):
                 _errno, errmsg = e.args
             raise ConnectionError("Error %s while writing to socket. %s." % \
                 (_errno, errmsg))
+        except AttributeError:
+            if not self._sock:
+                self.connect()
+                self._parser.on_connect(self)
+                try:
+                    self._sock.sendall(command)
+                except AttributeError:
+                    if not self._sock:
+                        raise ConnectionError("Error while writing to socket.")
+                    else:
+                        raise
+            else:
+                raise
         except:
             self.disconnect()
             raise
