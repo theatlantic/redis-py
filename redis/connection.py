@@ -34,7 +34,8 @@ class PythonParser(object):
 
     def on_connect(self, connection):
         "Called when the socket connects"
-        self._fp = connection._sock.makefile('r')
+        self._sock = connection._sock
+        self._fp = self._sock.makefile('r')
 
     def on_disconnect(self):
         "Called when the socket disconnects"
@@ -74,7 +75,15 @@ class PythonParser(object):
                 (e.args,))
 
     def read_response(self):
-        response = self.read()
+        if not self._fp or not self._sock:
+            raise ConnectionError("Socket closed on remote end")
+        try:
+            response = self.read()
+        except AttributeError:
+            if not self._fp._sock:
+                raise ConnectionError("Socket closed on remote end")
+            else:
+                raise
         if not response:
             raise ConnectionError("Socket closed on remote end")
 
@@ -133,23 +142,29 @@ class HiredisParser(object):
         self._reader = None
 
     def read_response(self):
-        if not self._reader:
+        if not self._reader or not self._sock:
             raise ConnectionError("Socket closed on remote end")
-        response = self._reader.gets()
-        while response is False:
-            try:
-                buffer = self._sock.recv(4096)
-            except (socket.error, socket.timeout), e:
-                raise ConnectionError("Error while reading from socket: %s" % \
-                    (e.args,))
-            if not buffer:
-                raise ConnectionError("Socket closed on remote end")
-            self._reader.feed(buffer)
-            # proactively, but not conclusively, check if more data is in the
-            # buffer. if the data received doesn't end with \n, there's more.
-            if not buffer.endswith('\n'):
-                continue
+        try:
             response = self._reader.gets()
+            while response is False:
+                try:
+                    buffer = self._sock.recv(4096)
+                except (socket.error, socket.timeout), e:
+                    raise ConnectionError("Error while reading from socket: %s" % \
+                        (e.args,))
+                if not buffer:
+                    raise ConnectionError("Socket closed on remote end")
+                self._reader.feed(buffer)
+                # proactively, but not conclusively, check if more data is in the
+                # buffer. if the data received doesn't end with \n, there's more.
+                if not buffer.endswith('\n'):
+                    continue
+                response = self._reader.gets()
+        except AttributeError:
+            if not self._reader or not self._sock:
+                raise ConnectionError("Socket closed on remote end")
+            else:
+                raise
         return response
 
 if hiredis_available:
@@ -215,13 +230,13 @@ class Connection(object):
         # if a password is specified, authenticate
         if self.password:
             self.send_command('AUTH', self.password)
-            if self.read_response() != 'OK':
+            if self.read_response(catch_errors=False) != 'OK':
                 raise AuthenticationError('Invalid Password')
 
         # if a database is specified, switch to it
         if self.db:
             self.send_command('SELECT', self.db)
-            if self.read_response() != 'OK':
+            if self.read_response(catch_errors=False) != 'OK':
                 raise ConnectionError('Invalid Database')
 
     def disconnect(self):
@@ -257,10 +272,20 @@ class Connection(object):
         "Pack and send a command to the Redis server"
         self.send_packed_command(self.pack_command(*args))
 
-    def read_response(self):
+    def read_response(self, catch_errors=True):
         "Read the response from a previously sent command"
+        if not self._parser._sock:
+            self.connect()
+            self._parser.on_connect(self)
         try:
-            response = self._parser.read_response()
+            try:
+                response = self._parser.read_response()
+            except ConnectionError:
+                if not self.catch_errors:
+                    raise
+                self.connect()
+                self._parser.on_connect(self)
+                response = self._parser.read_response()
         except:
             self.disconnect()
             raise
