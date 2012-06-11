@@ -213,7 +213,7 @@ class Connection(object):
         sock.settimeout(self.socket_timeout)
         sock.connect((self.host, self.port))
         if self.tcp_nodelay:
-            sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 0)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
         return sock
 

@@ -188,7 +188,7 @@ class StrictRedis(object):
                  db=0, password=None, socket_timeout=None,
                  connection_pool=None, charset='utf-8',
                  errors='strict', decode_responses=False,
-                 unix_socket_path=None):
+                 tcp_nodelay=False, unix_socket_path=None):
         if not connection_pool:
             kwargs = {
                 'db': db,
@@ -197,6 +197,7 @@ class StrictRedis(object):
                 'encoding': charset,
                 'encoding_errors': errors,
                 'decode_responses': decode_responses,
+                'tcp_nodelay': tcp_nodelay,
                 }
             # based on input, setup appropriate connection args
             if unix_socket_path:
