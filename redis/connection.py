@@ -175,7 +175,7 @@ class Connection(object):
     def __init__(self, host='localhost', port=6379, db=0, password=None,
                  socket_timeout=None, encoding='utf-8',
                  encoding_errors='strict', decode_responses=False,
-                 parser_class=DefaultParser):
+                 tcp_nodelay=False, parser_class=DefaultParser):
         self.pid = os.getpid()
         self.host = host
         self.port = port
@@ -185,6 +185,7 @@ class Connection(object):
         self.encoding = encoding
         self.encoding_errors = encoding_errors
         self.decode_responses = decode_responses
+        self.tcp_nodelay = tcp_nodelay
         self._sock = None
         self._parser = parser_class()
 
@@ -211,6 +212,9 @@ class Connection(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.socket_timeout)
         sock.connect((self.host, self.port))
+        if self.tcp_nodelay:
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 0)
+
         return sock
 
     def _error_message(self, exception):
